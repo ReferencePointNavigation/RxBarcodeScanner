@@ -1,9 +1,7 @@
 package com.referencepoint.barcodescanner;
 
-import android.content.Context;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
-import android.util.Log;
 import android.util.Size;
 
 import com.google.zxing.DecodeHintType;
@@ -18,10 +16,7 @@ import java.util.Map;
 
 import io.reactivex.BackpressureStrategy;
 import io.reactivex.Flowable;
-import io.reactivex.Observable;
-import io.reactivex.disposables.CompositeDisposable;
 import io.reactivex.schedulers.Schedulers;
-import io.reactivex.subjects.PublishSubject;
 
 public class BarcodeScanner {
 
@@ -29,16 +24,9 @@ public class BarcodeScanner {
 
     private Decoder mDecoder;
 
-    private Context mContext;
-
     private CameraProvider mCameraProvider;
 
-    private PublishSubject<BarcodeResult> mResultSubject = PublishSubject.create();
-
-    private final CompositeDisposable disposables = new CompositeDisposable();
-
-    public BarcodeScanner(Context context, CameraProvider cameraProvider) {
-        mContext = context;
+    public BarcodeScanner(CameraProvider cameraProvider) {
         mCameraProvider = cameraProvider;
         mDecoderFactory = new DefaultDecoderFactory();
         mDecoder = createDecoder();

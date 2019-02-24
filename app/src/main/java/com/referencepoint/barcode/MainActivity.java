@@ -23,7 +23,7 @@ import io.reactivex.disposables.CompositeDisposable;
 public class MainActivity extends AppCompatActivity {
 
     private static final String[] requiredPermissions = {
-            Manifest.permission.CAMERA
+        Manifest.permission.CAMERA
     };
     private static final int MY_PERMISSIONS_REQUEST_ACCESS_CODE = 1;
 
@@ -40,14 +40,12 @@ public class MainActivity extends AppCompatActivity {
 
         CameraProvider cameraProvider = new AndroidCameraProvider(getApplicationContext());
 
-        BarcodeScanner scanner = new BarcodeScanner(getApplicationContext(), cameraProvider);
+        BarcodeScanner scanner = new BarcodeScanner(cameraProvider);
 
         btn.setOnClickListener(v -> {
             disposables.add(scanner.scan().subscribe(i -> {
-                Log.i("RXCAMERA","image received");}));
+                Log.i("RXCAMERA", i.getText());}));
         });
-
-
     }
 
 
@@ -56,8 +54,7 @@ public class MainActivity extends AppCompatActivity {
                                            @NonNull String permissions[], @NonNull int[] grantResults) {
         switch (requestCode) {
             case MY_PERMISSIONS_REQUEST_ACCESS_CODE: {
-                if (!(grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+                if (!(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
                     checkPermissions();
                 }
             }
@@ -78,7 +75,7 @@ public class MainActivity extends AppCompatActivity {
         }
         if (!neededPermissions.isEmpty()) {
             requestPermissions(neededPermissions.toArray(new String[]{}),
-                    MY_PERMISSIONS_REQUEST_ACCESS_CODE);
+                MY_PERMISSIONS_REQUEST_ACCESS_CODE);
         }
     }
 }
