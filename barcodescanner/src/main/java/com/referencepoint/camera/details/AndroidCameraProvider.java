@@ -54,7 +54,6 @@ public class AndroidCameraProvider implements CameraProvider {
      * Max preview width that is guaranteed by Camera2 API
      */
     private static final int MAX_PREVIEW_WIDTH = 1920;
-
     /**
      * Max preview height that is guaranteed by Camera2 API
      */
