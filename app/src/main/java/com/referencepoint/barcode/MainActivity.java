@@ -22,6 +22,8 @@ import io.reactivex.disposables.CompositeDisposable;
 
 public class MainActivity extends AppCompatActivity {
 
+    boolean isOpen = false;
+
     private static final String[] requiredPermissions = {
         Manifest.permission.CAMERA
     };
@@ -42,9 +44,17 @@ public class MainActivity extends AppCompatActivity {
 
         BarcodeScanner scanner = new BarcodeScanner(cameraProvider);
 
+
         btn.setOnClickListener(v -> {
-            disposables.add(scanner.scan().subscribe(i -> {
-                Log.i("RXCAMERA", i.getText());}));
+            if (isOpen) {
+                disposables.dispose();
+                isOpen = false;
+            } else {
+                isOpen = true;
+                disposables.add(scanner.scan().subscribe(i -> {
+                    Log.i("RXCAMERA", i.getText());
+                }));
+            }
         });
     }
 

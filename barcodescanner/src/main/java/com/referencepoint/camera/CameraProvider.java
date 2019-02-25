@@ -7,10 +7,12 @@ import io.reactivex.Flowable;
 
 public interface CameraProvider {
 
-    Flowable<byte[]> preview();
-
     Size getPreviewSize();
 
     int getOrientation();
+
+    Flowable<byte[]> preview();
+
+    void close();
 
 }

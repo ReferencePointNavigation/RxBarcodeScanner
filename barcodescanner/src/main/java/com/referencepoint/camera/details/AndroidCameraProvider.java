@@ -238,6 +238,11 @@ public class AndroidCameraProvider implements CameraProvider {
         return ORIENTATIONS.get(rotation);
     }
 
+    @Override
+    public void close() {
+        closeCamera();
+    }
+
     /**
      * {@link CameraDevice.StateCallback} is called when {@link CameraDevice} changes its state.
      */

@@ -26,10 +26,14 @@ public class BarcodeScanner {
 
     private CameraProvider mCameraProvider;
 
+    private Rect mClippingArea;
+
     public BarcodeScanner(CameraProvider cameraProvider) {
         mCameraProvider = cameraProvider;
         mDecoderFactory = new DefaultDecoderFactory();
         mDecoder = createDecoder();
+        Size size = mCameraProvider.getPreviewSize();
+        mClippingArea = new Rect(0, 0, size.getHeight(), size.getWidth());
     }
 
     public Flowable<BarcodeResult> scan() {
@@ -57,7 +61,7 @@ public class BarcodeScanner {
             Size size = mCameraProvider.getPreviewSize();
             int orientation = mCameraProvider.getOrientation();
             SourceData sourceData = new SourceData(data, size.getWidth(), size.getHeight(), ImageFormat.YUV_420_888, orientation);
-            sourceData.setCropRect(new Rect(0, 0, size.getHeight(), size.getWidth()));
+            sourceData.setCropRect(mClippingArea);
             BarcodeResult result = decode(sourceData);
             if (result != null) {
                 emitter.onNext(result);
