@@ -71,7 +71,6 @@ public class BarcodeScanner {
 
     private BarcodeResult decode(SourceData sourceData) {
         Result rawResult = null;
-
         LuminanceSource source = sourceData.createSource();
 
         if(source != null) {

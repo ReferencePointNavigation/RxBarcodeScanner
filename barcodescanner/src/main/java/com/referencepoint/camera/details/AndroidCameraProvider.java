@@ -1,7 +1,6 @@
 package com.referencepoint.camera.details;
 
 import com.referencepoint.camera.CameraProvider;
-
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -28,7 +27,6 @@ import android.media.Image;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -62,8 +60,13 @@ public class AndroidCameraProvider implements CameraProvider {
      * A {@link CameraCaptureSession } for camera preview.
      */
     private CameraCaptureSession mCaptureSession;
-
+    /**
+     * The {@link Context} of the Application
+     */
     private Context mContext;
+    /**
+     * The {@link CameraManager} provided by the {@link Context}
+     */
     private CameraManager mCameraManager;
     /**
      * A reference to the opened {@link CameraDevice}.
@@ -86,18 +89,36 @@ public class AndroidCameraProvider implements CameraProvider {
      */
     private boolean mFlashSupported;
     /**
-     * The {@link android.util.Size} of camera preview.
+     * The {@link Size} of camera preview.
      */
     private Size mPreviewSize = new Size(MAX_PREVIEW_WIDTH, MAX_PREVIEW_HEIGHT);
-
+    /**
+     * The {@link ImageReader} used to retrieve the camera preview
+     */
     private ImageReader mImageReader;
 
     private Queue<String> mCameraIds = new LinkedList<>();
+    /**
+     * The id of the currently selected {@link CameraDevice}
+     */
     private String mCurrentCameraId;
+
     private boolean cameraClosed;
 
     private PublishSubject<byte[]> imagePublishSubject = PublishSubject.create();
 
+    private ImageReader.OnImageAvailableListener onImageAvailableListener = (ImageReader imReader) -> {
+        final Image image = imReader.acquireNextImage();
+        final ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+        final byte[] bytes = new byte[buffer.capacity()];
+        buffer.get(bytes);
+        image.close();
+        imagePublishSubject.onNext(bytes);
+    };
+    /**
+     * Constructor for an {@link AndroidCameraProvider}
+     * @param context the Application context
+     */
     public AndroidCameraProvider(Context context) {
         mContext = context;
         mCameraManager = (CameraManager)mContext.getSystemService(Context.CAMERA_SERVICE);
@@ -108,23 +129,17 @@ public class AndroidCameraProvider implements CameraProvider {
         return mPreviewSize;
     }
 
-    private ImageReader.OnImageAvailableListener onImageAvailableListener = (ImageReader imReader) -> {
-        final Image image = imReader.acquireNextImage();
-        final ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-        final byte[] bytes = new byte[buffer.capacity()];
-        buffer.get(bytes);
-        image.close();
-        imagePublishSubject.onNext(bytes);
-    };
+    @Override
+    public int getOrientation() {
+        WindowManager wm = (WindowManager)mContext.getSystemService(Context.WINDOW_SERVICE);
+        int rotation = wm.getDefaultDisplay().getRotation();
+        return ORIENTATIONS.get(rotation);
+    }
 
-    private CameraCaptureSession.CaptureCallback captureListener = new CameraCaptureSession.CaptureCallback() {
-        @Override
-        public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request,
-                                       @NonNull TotalCaptureResult result) {
-            super.onCaptureCompleted(session, request, result);
-            //closeCamera();
-        }
-    };
+    @Override
+    public void close() {
+        closeCamera();
+    }
 
     @Override
     public Flowable<byte[]> preview() {
@@ -155,26 +170,22 @@ public class AndroidCameraProvider implements CameraProvider {
 
     private ImageReader setupImageReader() throws CameraAccessException {
         CameraCharacteristics characteristics = mCameraManager.getCameraCharacteristics(mCameraDevice.getId());
-        Size[] jpegSizes = null;
+        Size[] imageSizes = null;
         StreamConfigurationMap streamConfigurationMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
 
         if (streamConfigurationMap != null) {
-            jpegSizes = streamConfigurationMap.getOutputSizes(ImageFormat.YUV_420_888);
+            imageSizes = streamConfigurationMap.getOutputSizes(ImageFormat.YUV_420_888);
         }
 
-        boolean jpegSizesNotEmpty = jpegSizes != null && 0 < jpegSizes.length;
-        int width = jpegSizesNotEmpty ? jpegSizes[0].getWidth() : MAX_PREVIEW_WIDTH;
-        int height = jpegSizesNotEmpty ? jpegSizes[0].getHeight() : MAX_PREVIEW_HEIGHT;
-        mPreviewSize = jpegSizesNotEmpty ? jpegSizes[0] : mPreviewSize;
+        boolean imageSizesNotEmpty = imageSizes != null && 0 < imageSizes.length;
+        int width = imageSizesNotEmpty ? imageSizes[0].getWidth() : MAX_PREVIEW_WIDTH;
+        int height = imageSizesNotEmpty ? imageSizes[0].getHeight() : MAX_PREVIEW_HEIGHT;
+        mPreviewSize = imageSizesNotEmpty ? imageSizes[0] : mPreviewSize;
 
         return ImageReader.newInstance(width, height, ImageFormat.YUV_420_888, 1);
     }
 
     private void startPreview() throws CameraAccessException {
-
-        if (null == mCameraDevice) {
-            return;
-        }
 
         mImageReader = setupImageReader();
         mImageReader.setOnImageAvailableListener(onImageAvailableListener, null);
@@ -185,7 +196,11 @@ public class AndroidCameraProvider implements CameraProvider {
         mPreviewRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
         mPreviewRequestBuilder.addTarget(mImageReader.getSurface());
         mPreviewRequestBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
-        mPreviewRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, getOrientation());
+        // Auto focus should be continuous for camera preview.
+        mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+        // Flash is automatically enabled when necessary.
+        setAutoFlash(mPreviewRequestBuilder);
+        //mPreviewRequestBuilder.set(CaptureRequest.JPEG_ORIENTATION, getOrientation());
 
         mCameraDevice.createCaptureSession(outputSurfaces, new CameraCaptureSession.StateCallback() {
             @Override
@@ -197,11 +212,6 @@ public class AndroidCameraProvider implements CameraProvider {
                 // When the session is ready, we start displaying the preview.
                 mCaptureSession = session;
                 try {
-                    // Auto focus should be continuous for camera preview.
-                    mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE,
-                        CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-                    // Flash is automatically enabled when necessary.
-                    setAutoFlash(mPreviewRequestBuilder);
                     // Finally, we start displaying the camera preview.
                     mPreviewRequest = mPreviewRequestBuilder.build();
                     mCaptureSession.setRepeatingRequest(mPreviewRequest,
@@ -230,19 +240,6 @@ public class AndroidCameraProvider implements CameraProvider {
             mCameraDevice = null;
         }
     }
-
-    @Override
-    public int getOrientation() {
-        WindowManager wm = (WindowManager)mContext.getSystemService(Context.WINDOW_SERVICE);
-        int rotation = wm.getDefaultDisplay().getRotation();
-        return ORIENTATIONS.get(rotation);
-    }
-
-    @Override
-    public void close() {
-        closeCamera();
-    }
-
     /**
      * {@link CameraDevice.StateCallback} is called when {@link CameraDevice} changes its state.
      */
@@ -283,5 +280,4 @@ public class AndroidCameraProvider implements CameraProvider {
             }
         }
     };
-
 }
